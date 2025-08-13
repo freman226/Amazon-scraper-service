@@ -6,6 +6,7 @@ from sib_api_v3_sdk.rest import ApiException
 import os
 from supabase import create_client, Client
 from datetime import datetime
+import bcrypt
 
 router = APIRouter()
 
@@ -39,10 +40,12 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 async def register_user(data: RegisterRequest):
     code = generate_code()
     now = datetime.now().isoformat()
+    # Hashear la contraseña antes de guardar
+    hashed_password = bcrypt.hashpw(data.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
     result = supabase.table("users").insert({
         "username": data.username,
         "email": data.email,
-        "password": data.password,
+        "password": hashed_password,
         "verification_code": code,
         "is_verified": False,
         "created_at": now,
@@ -110,7 +113,8 @@ async def login_user(data: LoginRequest):
     if not result.data:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     user = result.data[0]
-    if data.password != user["password"]:
+    # Verificar la contraseña hasheada
+    if not bcrypt.checkpw(data.password.encode('utf-8'), user["password"].encode('utf-8')):
         raise HTTPException(status_code=400, detail="Contraseña incorrecta")
     if not user["is_verified"]:
         raise HTTPException(status_code=403, detail="Correo no verificado")
