@@ -98,15 +98,14 @@ def _find_title(lines: list[str]) -> str | None:
     title = _re.sub(r"\s{2,}", " ", " ".join(title_lines).strip())
     return title or (lines[0].strip() if lines else None)
 
-def normalize_children_text(children_text_obj: dict[str, Any]) -> dict[str, Any] | None:
-    if not isinstance(children_text_obj, dict): return None
-    text = "\n".join([v for v in children_text_obj.values() if isinstance(v, str)])
-    lines = _join_lines(text.splitlines())
-    return {
-        "title":   _find_title(lines),
-        "rating":  _find_rating(lines),
-        "reviews": _find_reviews(lines),
-        "price":   _find_price(lines),
-        "delivery":_find_delivery(lines),
-        "badges":  _find_badges(lines),
-    }
+def normalize_children_text(raw_data):
+    # Aquí tu lógica para limpiar y ordenar los datos
+    # Por ejemplo:
+    normalized = []
+    for item in raw_data:
+        normalized.append({
+            "title": item.get("title", ""),
+            "price": item.get("price", ""),
+            "url": item.get("url", "")
+        })
+    return normalized

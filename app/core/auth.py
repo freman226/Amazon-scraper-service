@@ -1,32 +1,42 @@
 # app/core/auth.py
-from fastapi import Depends, HTTPException, status
+import random
+import jwt
+from datetime import datetime, timedelta
+import bcrypt
+import os
+from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from app.core.config import ACCESS_TOKEN
+from supabase import create_client, Client
 
-bearer_scheme = HTTPBearer(auto_error=False)
+JWT_SECRET = os.getenv("JWT_SECRET", "supersecretkey")
+JWT_ALGORITHM = "HS256"
+security = HTTPBearer()
 
-def require_bearer(credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
-    # Sin credenciales o esquema incorrecto
-    if credentials is None or credentials.scheme.lower() != "bearer":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-    if not ACCESS_TOKEN:
-        # Config del servidor incompleta
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Server misconfigured: ACCESS_TOKEN not set",
-        )
+def generate_code():
+    return str(random.randint(100000, 999999))
 
-    # Token inválido
-    if credentials.credentials != ACCESS_TOKEN:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+def create_access_token(data: dict, expires_delta: timedelta = timedelta(hours=1)):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + expires_delta
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
-    return True
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    try:
+        payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        return payload
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Token inválido o expirado")
+
+def require_verified_user(current_user: dict = Depends(get_current_user)):
+    email = current_user.get("email")
+    if not email:
+        raise HTTPException(status_code=401, detail="Usuario no autenticado")
+    result = supabase.table("users").select("is_verified").eq("email", email).execute()
+    if not result.data or not result.data[0]["is_verified"]:
+        raise HTTPException(status_code=403, detail="Correo no verificado")
+    return current_user

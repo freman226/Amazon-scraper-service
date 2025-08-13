@@ -3,7 +3,7 @@ import sys, asyncio
 from fastapi import FastAPI
 from app.api.routers import health as health_router
 from app.api.routers import scrape as scrape_router
-from app.api.routers import ask as ask_router
+from app.api.routers import prompt as ask_router
 from app.api.routers import auth
 
 if sys.platform.startswith("win"):

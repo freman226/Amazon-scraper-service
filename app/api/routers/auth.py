@@ -1,53 +1,20 @@
 import random
-from fastapi import APIRouter, HTTPException, Query, Depends
-from pydantic import BaseModel, EmailStr
+from fastapi import APIRouter, HTTPException, Depends
+from supabase import create_client, Client
+from datetime import datetime
+import os
 import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
-import os
-from supabase import create_client, Client
-from datetime import datetime, timedelta
+
+from app.schemas.auth import RegisterRequest, ValidateEmailRequest, LoginRequest
+from app.core.auth import generate_code, create_access_token, get_current_user
 import bcrypt
-import jwt
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 router = APIRouter()
-
-class RegisterRequest(BaseModel):
-    username: str
-    email: EmailStr
-    password: str
-
-class ValidateEmailRequest(BaseModel):
-    code: str
-
-class LoginRequest(BaseModel):
-    username: str
-    password: str
-
-def generate_code():
-    return str(random.randint(100000, 999999))
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-JWT_SECRET = os.getenv("JWT_SECRET", "supersecretkey")  # Pon una clave segura en tu .env
-JWT_ALGORITHM = "HS256"
-
-def create_access_token(data: dict, expires_delta: timedelta = timedelta(hours=1)):
-    to_encode = data.copy()
-    expire = datetime.utcnow() + expires_delta
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
-
-security = HTTPBearer()
-
-def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    try:
-        payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        return payload
-    except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="Token inválido o expirado")
 
 @router.post("/register")
 async def register_user(data: RegisterRequest):

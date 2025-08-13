@@ -1,37 +1,24 @@
 # app/api/routers/scrape.py
-import json
-from fastapi import APIRouter, Query, Depends
-from starlette.concurrency import run_in_threadpool
+from fastapi import APIRouter, Depends
+from app.schemas.scrape import ScrapeRequest
 from app.services.scraper import scrape_amazon
 from app.services.purify import normalize_children_text
-from app.core.config import RAW_FILE, DATA_FILE
-from app.core.auth import require_bearer
+from app.core.config import DATA_FILE
+from app.core.auth import require_verified_user
+import json
 
 router = APIRouter(
     prefix="/scrape",
-    tags=["scrape"],
-    dependencies=[Depends(require_bearer)]  
+    tags=["scrape"]
 )
 
 @router.post("")
-async def scrape_and_purify(url: str = Query(..., description="URL de búsqueda de Amazon")):
-    raw_data = await run_in_threadpool(scrape_amazon, url)
-    RAW_FILE.write_text(json.dumps(raw_data, indent=2, ensure_ascii=False), encoding="utf-8")
+async def scrape_and_save(body: ScrapeRequest, current_user: dict = Depends(require_verified_user)):
+    # Scrapea la url
+    raw_data = await scrape_amazon(body.url)  # 👈 Usa await
+    # Normaliza y ordena los datos
+    normalized_data = normalize_children_text(raw_data)
+    # Guarda directamente en data.json
+    DATA_FILE.write_text(json.dumps(normalized_data, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"status": "success", "message": "Datos guardados en data.json"}
 
-    structured = []
-    for idx, prod in enumerate(raw_data, start=1):
-        if isinstance(prod, dict) and "children_text" in prod:
-            clean = normalize_children_text(prod["children_text"])
-            if clean:
-                clean["id"] = idx
-                structured.append(clean)
-
-    DATA_FILE.write_text(json.dumps(structured, indent=2, ensure_ascii=False), encoding="utf-8")
-    return {
-        "status": "success",
-        "url": url,
-        "saved_raw": str(RAW_FILE.resolve()),
-        "saved_structured": str(DATA_FILE.resolve()),
-        "raw_items": len(raw_data),
-        "structured_items": len(structured)
-    }
