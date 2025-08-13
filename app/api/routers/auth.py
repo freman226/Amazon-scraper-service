@@ -1,12 +1,14 @@
 import random
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel, EmailStr
 import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
 import os
 from supabase import create_client, Client
-from datetime import datetime
+from datetime import datetime, timedelta
 import bcrypt
+import jwt
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 router = APIRouter()
 
@@ -35,6 +37,24 @@ def generate_code():
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+JWT_SECRET = os.getenv("JWT_SECRET", "supersecretkey")  # Pon una clave segura en tu .env
+JWT_ALGORITHM = "HS256"
+
+def create_access_token(data: dict, expires_delta: timedelta = timedelta(hours=1)):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + expires_delta
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+security = HTTPBearer()
+
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    try:
+        payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        return payload
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Token inválido o expirado")
 
 @router.post("/register")
 async def register_user(data: RegisterRequest):
@@ -108,14 +128,18 @@ async def validate_email(data: ValidateEmailRequest):
 
 @router.post("/login")
 async def login_user(data: LoginRequest):
-    # Buscar usuario en Supabase
     result = supabase.table("users").select("*").eq("username", data.username).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     user = result.data[0]
-    # Verificar la contraseña hasheada
     if not bcrypt.checkpw(data.password.encode('utf-8'), user["password"].encode('utf-8')):
         raise HTTPException(status_code=400, detail="Contraseña incorrecta")
     if not user["is_verified"]:
         raise HTTPException(status_code=403, detail="Correo no verificado")
-    return {"message": "Login exitoso"}
+    # Generar token JWT
+    token = create_access_token({"sub": user["username"], "email": user["email"]})
+    return {"access_token": token, "token_type": "bearer"}
+
+@router.get("/me")
+async def read_users_me(current_user: dict = Depends(get_current_user)):
+    return {"user": current_user}
