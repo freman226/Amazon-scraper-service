@@ -39,7 +39,7 @@ Este proyecto es una API backend desarrollada con FastAPI para el análisis y sc
    pip install -r requirements.txt
    ```
 
-4. Configura tus variables de entorno en un archivo `.env` (no lo subas al repositorio):
+4. Configura tus variables de entorno en un archivo `.env`:
    ```
    GOOGLE_API_KEY="Your gemini api key"
    ACCESS_TOKEN="Your token access"
@@ -77,11 +77,3 @@ app/
   └── ...
 ```
 
-## Notas de seguridad
-
-- **No subas tu archivo `.env` ni claves al repositorio.**
-- Cambia tus claves si han sido expuestas.
-
-## Licencia
-
-MIT
