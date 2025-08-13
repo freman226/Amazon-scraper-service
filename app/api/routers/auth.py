@@ -12,19 +12,12 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 router = APIRouter()
 
-# Diccionario temporal para pruebas: {email: code}
-codes = {}
-# Diccionario temporal para pruebas: {username: password}
-users = {}
-emails_to_usernames = {}
-
 class RegisterRequest(BaseModel):
     username: str
     email: EmailStr
     password: str
 
 class ValidateEmailRequest(BaseModel):
-    email: EmailStr
     code: str
 
 class LoginRequest(BaseModel):
@@ -58,6 +51,15 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
 
 @router.post("/register")
 async def register_user(data: RegisterRequest):
+    # Verificar si el username ya existe
+    username_check = supabase.table("users").select("id").eq("username", data.username).execute()
+    if username_check.data:
+        raise HTTPException(status_code=400, detail="El nombre de usuario ya está registrado")
+    # Verificar si el email ya existe
+    email_check = supabase.table("users").select("id").eq("email", data.email).execute()
+    if email_check.data:
+        raise HTTPException(status_code=400, detail="El correo ya está registrado")
+
     code = generate_code()
     now = datetime.now().isoformat()
     # Hashear la contraseña antes de guardar
@@ -76,7 +78,12 @@ async def register_user(data: RegisterRequest):
     return {"message": "Usuario registrado correctamente"}
 
 @router.get("/getVerificationCode")
-async def get_verification_code(email: EmailStr = Query(...)):
+async def get_verification_code(current_user: dict = Depends(get_current_user)):
+    # Solo usa el email del usuario autenticado
+    if not current_user or "email" not in current_user:
+        raise HTTPException(status_code=401, detail="Usuario no autenticado")
+    email = current_user["email"]
+
     # Buscar el usuario por email en Supabase
     result = supabase.table("users").select("verification_code").eq("email", email).execute()
     if not result.data or not result.data[0]["verification_code"]:
@@ -112,9 +119,16 @@ async def get_verification_code(email: EmailStr = Query(...)):
         raise HTTPException(status_code=500, detail=f"Error enviando correo: {e}")
 
 @router.post("/validateEmail")
-async def validate_email(data: ValidateEmailRequest):
+async def validate_email(
+    data: ValidateEmailRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    if not current_user or "email" not in current_user:
+        raise HTTPException(status_code=401, detail="Usuario no autenticado")
+    email = current_user["email"]
+
     # Buscar el usuario por email en Supabase
-    result = supabase.table("users").select("verification_code", "is_verified").eq("email", data.email).execute()
+    result = supabase.table("users").select("verification_code", "is_verified").eq("email", email).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="No se encontró usuario para este correo")
     user = result.data[0]
@@ -123,7 +137,7 @@ async def validate_email(data: ValidateEmailRequest):
     if data.code != user["verification_code"]:
         raise HTTPException(status_code=400, detail="Código incorrecto")
     # Marcar usuario como verificado
-    supabase.table("users").update({"is_verified": True}).eq("email", data.email).execute()
+    supabase.table("users").update({"is_verified": True}).eq("email", email).execute()
     return {"message": "Correo verificado correctamente"}
 
 @router.post("/login")
@@ -134,9 +148,6 @@ async def login_user(data: LoginRequest):
     user = result.data[0]
     if not bcrypt.checkpw(data.password.encode('utf-8'), user["password"].encode('utf-8')):
         raise HTTPException(status_code=400, detail="Contraseña incorrecta")
-    if not user["is_verified"]:
-        raise HTTPException(status_code=403, detail="Correo no verificado")
-    # Generar token JWT
     token = create_access_token({"sub": user["username"], "email": user["email"]})
     return {"access_token": token, "token_type": "bearer"}
 
