@@ -5,6 +5,7 @@ from pathlib import Path
 
 INPUT_SCRAP = Path("scrapped_info.json")  # archivo generado por /scrape
 OUTPUT_STRUCT = Path("data.json")         # salida estructurada
+OUTPUT_FILE = Path("data/data.json")
 
 # ------- Reglas/heurísticas -------
 PRICE_REGEX = re.compile(r"\$\d{1,4}(?:,\d{3})*(?:\.\d{2})?")
@@ -169,6 +170,9 @@ def main():
     # 3) guardar salida
     OUTPUT_STRUCT.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"OK → {OUTPUT_STRUCT} ({len(result)} items)")
+
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+        json.dump(result, f, ensure_ascii=False, indent=2)
 
 if __name__ == "__main__":
     main()

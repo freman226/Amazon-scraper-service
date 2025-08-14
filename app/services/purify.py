@@ -1,6 +1,8 @@
 # app/services/purify.py
 import re
 from typing import Any
+from pathlib import Path
+import json
 
 PRICE_REGEX   = re.compile(r"\$\d{1,4}(?:,\d{3})*(?:\.\d{2})?")
 RATING_REGEX  = re.compile(r"(\d+(?:[.,]\d+)?)\s*(?:out of 5 stars|de 5 estrellas)", re.IGNORECASE)
@@ -14,6 +16,8 @@ BADGE_KEYWORDS = [
     "Agregar al carrito", "Añadir a la cesta", "Ver opciones", "Más opciones de compra", "Solo quedan",
     "Exclusivo para miembros Prime"
 ]
+
+OUTPUT_FILE = Path("data/data.json")
 
 def _join_lines(lines: list[str]) -> list[str]:
     return [l.strip() for l in lines if l and l.strip()]
@@ -109,3 +113,7 @@ def normalize_children_text(raw_data):
             "url": item.get("url", "")
         })
     return normalized
+
+# ... después de purificar los datos ...
+with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+    json.dump(purified_data, f, ensure_ascii=False, indent=2)
