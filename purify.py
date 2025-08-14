@@ -172,3 +172,10 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+import json
+
+url = "TU_URL_DE_AMAZON"
+data = scrape_amazon(url)
+with open("scrapped_info.json", "w", encoding="utf-8") as f:
+    json.dump(data, f, ensure_ascii=False, indent=2)
