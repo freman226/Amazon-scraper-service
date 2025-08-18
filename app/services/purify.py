@@ -1,8 +1,10 @@
 # purify.py
 import json
+
 import re
 from pathlib import Path
 
+url = "TU_URL_DE_AMAZON"
 INPUT_SCRAP = Path("scrapped_info.json")  # archivo generado por /scrape
 OUTPUT_STRUCT = Path("data.json")         # salida estructurada
 OUTPUT_FILE = Path("data/data.json")
@@ -209,7 +211,5 @@ def main():
 if __name__ == "__main__":
     purify()
 
-import json
 
-url = "TU_URL_DE_AMAZON"
 
